@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { addCategory, getCategories, removeCategory, Category as CatType } from "@/lib/storage";
+import { addCategory, getCategories, removeCategory, updateCategory, Category as CatType } from "@/lib/storage";
 
 const ManageCategory = () => {
   const [items, setItems] = useState<CatType[]>(getCategories());
@@ -61,10 +61,7 @@ const ManageCategory = () => {
           <div className="font-bold text-[11px] text-gray-500 mb-1">Income</div>
           <div className="grid gap-2">
             {income.map((c) => (
-              <div key={c.id} className="flex items-center justify-between border border-gray-200 rounded-md px-3 py-2">
-                <span className="text-[10px]">{c.name}</span>
-                <button className="text-[9px] text-red-500" onClick={() => remove(c.id)}>Remove</button>
-              </div>
+              <EditableRow key={c.id} item={c} onSave={(name, type) => { updateCategory(c.id, { name, type }); setItems(getCategories()); }} onRemove={() => remove(c.id)} />
             ))}
             {income.length === 0 && <div className="text-[9px] text-gray-400">No income categories</div>}
           </div>
@@ -74,10 +71,7 @@ const ManageCategory = () => {
           <div className="font-bold text-[11px] text-gray-500 mb-1">Expense</div>
           <div className="grid gap-2">
             {expense.map((c) => (
-              <div key={c.id} className="flex items-center justify-between border border-gray-200 rounded-md px-3 py-2">
-                <span className="text-[10px]">{c.name}</span>
-                <button className="text-[9px] text-red-500" onClick={() => remove(c.id)}>Remove</button>
-              </div>
+              <EditableRow key={c.id} item={c} onSave={(name, type) => { updateCategory(c.id, { name, type }); setItems(getCategories()); }} onRemove={() => remove(c.id)} />
             ))}
             {expense.length === 0 && <div className="text-[9px] text-gray-400">No expense categories</div>}
           </div>
@@ -88,3 +82,39 @@ const ManageCategory = () => {
 };
 
 export default ManageCategory;
+
+type RowProps = { item: CatType; onSave: (name: string, type: "income" | "expense") => void; onRemove: () => void };
+
+const EditableRow = ({ item, onSave, onRemove }: RowProps) => {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(item.name);
+  const [type, setType] = useState<"income" | "expense">(item.type);
+
+  if (!editing) {
+    return (
+      <div className="flex items-center justify-between border border-gray-200 rounded-md px-3 py-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-medium">{item.name}</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <button className="text-[9px] text-blue-500" onClick={() => setEditing(true)}>Edit</button>
+          <button className="text-[9px] text-red-500" onClick={onRemove}>Remove</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-between border border-gray-200 rounded-md px-3 py-2 gap-2">
+      <input value={name} onChange={(e) => setName(e.target.value)} className="text-[10px] border border-gray-200 rounded px-2 py-1 flex-1" />
+      <select value={type} onChange={(e) => setType(e.target.value as any)} className="text-[10px] border border-gray-200 rounded px-2 py-1">
+        <option value="income">Income</option>
+        <option value="expense">Expense</option>
+      </select>
+      <div className="flex items-center gap-2">
+        <button className="text-[9px] text-green-600" onClick={() => { onSave(name.trim(), type); setEditing(false); }}>Save</button>
+        <button className="text-[9px] text-gray-500" onClick={() => { setName(item.name); setType(item.type); setEditing(false); }}>Cancel</button>
+      </div>
+    </div>
+  );
+};

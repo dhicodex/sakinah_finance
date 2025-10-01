@@ -1,12 +1,25 @@
+"use client";
+
 import EmptyState from "@/components/EmptyState";
 import CardTranscation from "@/components/CardTransaction";
 import { LuCircleDollarSign, LuBanknote } from "react-icons/lu";
 import { computeTotals, groupByDate } from "@/lib/storage";
+import { useEffect, useState } from "react";
 
 const HomeLayout = () => {
-    const totals = computeTotals();
-    const grouped = groupByDate();
+    const [totals, setTotals] = useState(computeTotals());
+    const [grouped, setGrouped] = useState(groupByDate());
     const dates = Object.keys(grouped).sort((a,b) => a > b ? -1 : 1); // desc
+
+    useEffect(() => {
+        const refresh = () => {
+            setTotals(computeTotals());
+            setGrouped(groupByDate());
+        };
+        refresh();
+        window.addEventListener('sf-storage-updated', refresh);
+        return () => window.removeEventListener('sf-storage-updated', refresh);
+    }, []);
 
     return (
         <div className="home-layout w-full">

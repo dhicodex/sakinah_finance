@@ -39,6 +39,7 @@ function readJSON<T>(key: string, fallback: T): T {
 function writeJSON<T>(key: string, val: T) {
   if (typeof window === 'undefined') return;
   localStorage.setItem(key, JSON.stringify(val));
+  try { window.dispatchEvent(new Event('sf-storage-updated')); } catch {}
 }
 
 // UUID fallback for older browsers (some mobile WebViews)
@@ -87,6 +88,12 @@ export function removeCategory(id: string) {
   writeJSON(KEYS.categories, list.filter(c => c.id !== id));
 }
 
+export function updateCategory(id: string, patch: Partial<Omit<Category, 'id'>>) {
+  const list = getCategories();
+  const next = list.map(c => c.id === id ? { ...c, ...patch } : c);
+  writeJSON(KEYS.categories, next);
+}
+
 export function getCategoriesByType(type: TxType): Category[] {
   return getCategories().filter(c => c.type === type);
 }
@@ -102,6 +109,17 @@ export function addTransaction(tx: Omit<Transaction, 'id' | 'createdAt'> & { id?
   const newTx: Transaction = { ...tx, id, createdAt: Date.now() };
   writeJSON(KEYS.transactions, [newTx, ...list]);
   return newTx;
+}
+
+export function updateTransaction(id: string, patch: Partial<Omit<Transaction, 'id'>>) {
+  const list = getTransactions();
+  const next = list.map(t => t.id === id ? { ...t, ...patch } : t);
+  writeJSON(KEYS.transactions, next);
+}
+
+export function deleteTransaction(id: string) {
+  const list = getTransactions();
+  writeJSON(KEYS.transactions, list.filter(t => t.id !== id));
 }
 
 // Transfer helpers

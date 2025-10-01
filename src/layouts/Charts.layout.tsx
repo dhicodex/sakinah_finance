@@ -96,19 +96,21 @@ const DonutChart: React.FC<DonutChartProps> = ({ slices, size = 160, strokeWidth
           />
           {arcs}
           <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" className="fill-gray-600" style={{ fontSize: 12 }}>
-            {total.toLocaleString('id-ID')}
+            Rp. {total.toLocaleString('id-ID')}
           </text>
         </svg>
         <div className="flex-1 grid gap-2">
-          {slices.map((s, i) => (
+          {slices.map((s, i) => {
+            const pct = Math.round((s.value / total) * 100);
+            return (
             <div key={i} className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-[10px] text-gray-600">
                 <span className="inline-block h-2 w-3 rounded" style={{ background: s.color }} />
                 <span>{s.label}</span>
               </div>
-              <div className="text-[10px] font-semibold">{s.value.toLocaleString('id-ID')}</div>
+              <div className="text-[10px] font-semibold">{s.value.toLocaleString('id-ID')} <span className="text-gray-500 font-normal">({isFinite(pct) ? pct : 0}%)</span></div>
             </div>
-          ))}
+          )})}
           {slices.length === 0 && <div className="text-[9px] text-gray-400">No data</div>}
         </div>
       </div>
