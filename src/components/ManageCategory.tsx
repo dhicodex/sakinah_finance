@@ -1,22 +1,10 @@
 "use client";
 
 import { useState } from "react";
-
-export type Category = {
-  id: string;
-  name: string;
-  type: "income" | "expense";
-};
-
-const initial: Category[] = [
-  { id: "1", name: "Gaji", type: "income" },
-  { id: "2", name: "Bonus", type: "income" },
-  { id: "3", name: "Makanan", type: "expense" },
-  { id: "4", name: "Transport", type: "expense" },
-];
+import { addCategory, getCategories, removeCategory, Category as CatType } from "@/lib/storage";
 
 const ManageCategory = () => {
-  const [items, setItems] = useState<Category[]>(initial);
+  const [items, setItems] = useState<CatType[]>(getCategories());
   const [form, setForm] = useState<{ name: string; type: "income" | "expense" }>({ name: "", type: "expense" });
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -26,11 +14,15 @@ const ManageCategory = () => {
 
   const add = () => {
     if (!form.name.trim()) return;
-    setItems((prev) => [{ id: crypto.randomUUID(), name: form.name.trim(), type: form.type }, ...prev]);
+    const created = addCategory({ name: form.name.trim(), type: form.type });
+    setItems((prev) => [created, ...prev]);
     setForm({ name: "", type: form.type });
   };
 
-  const remove = (id: string) => setItems((prev) => prev.filter((x) => x.id !== id));
+  const remove = (id: string) => {
+    removeCategory(id);
+    setItems((prev) => prev.filter((x) => x.id !== id));
+  };
 
   const income = items.filter((x) => x.type === "income");
   const expense = items.filter((x) => x.type === "expense");

@@ -23,6 +23,10 @@ const BallMenu = ({ handleFloatingMenu, onSelect }: BallMenuProps) => {
         {
             label: 'Log Income',
             value: 'log-income'
+        },
+        {
+            label: 'Tarik Tunai',
+            value: 'tarik-tunai'
         }
     ];
 

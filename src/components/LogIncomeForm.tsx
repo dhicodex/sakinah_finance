@@ -1,15 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import { addTransaction, getCategoriesByType } from "@/lib/storage";
+import AmountInput from "@/components/AmountInput";
 
-const LogIncomeForm = () => {
+type Props = { onSaved?: () => void };
+
+const LogIncomeForm = ({ onSaved }: Props) => {
   const [form, setForm] = useState({
     amount: "",
     date: "",
     account: "cash",
-    category: "salary",
+    category: "",
     description: "",
-    from: "",
   });
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -17,16 +20,30 @@ const LogIncomeForm = () => {
     setForm((p) => ({ ...p, [name]: value }));
   };
 
+  const submit = () => {
+    const amount = Number(form.amount || 0);
+    if (!amount || !form.date || !form.category) return;
+    addTransaction({
+      type: 'income',
+      amount,
+      date: form.date,
+      account: form.account as any,
+      category: form.category,
+      description: form.description,
+    });
+    if (onSaved) onSaved();
+  };
+
+  const categories = getCategoriesByType('income');
+
   return (
     <div className="grid gap-3">
       <div className="grid gap-1">
         <label className="text-[9px] text-gray-500">Amount</label>
-        <input
-          name="amount"
+        <AmountInput
           value={form.amount}
-          onChange={onChange}
-          type="number"
-          placeholder="e.g. 1000000"
+          onValue={(v) => setForm((p) => ({ ...p, amount: v }))}
+          placeholder="e.g. 1.000.000"
           className="w-full border border-gray-200 rounded-md px-3 py-2 text-[10px]"
         />
       </div>
@@ -64,23 +81,11 @@ const LogIncomeForm = () => {
           onChange={onChange}
           className="w-full border border-gray-200 rounded-md px-3 py-2 text-[10px]"
         >
-          <option value="salary">Gaji</option>
-          <option value="bonus">Bonus</option>
-          <option value="gift">Hadiah</option>
-          <option value="other">Lainnya</option>
+          <option value="">Pilih kategori</option>
+          {categories.map(c => (
+            <option key={c.id} value={c.name}>{c.name}</option>
+          ))}
         </select>
-      </div>
-
-      <div className="grid gap-1">
-        <label className="text-[9px] text-gray-500">From (Source)</label>
-        <input
-          name="from"
-          value={form.from}
-          onChange={onChange}
-          type="text"
-          placeholder="e.g. PT. XYZ"
-          className="w-full border border-gray-200 rounded-md px-3 py-2 text-[10px]"
-        />
       </div>
 
       <div className="grid gap-1">
@@ -93,6 +98,8 @@ const LogIncomeForm = () => {
           className="w-full border border-gray-200 rounded-md px-3 py-2 text-[10px] min-h-16"
         />
       </div>
+
+      <button onClick={submit} className="w-full text-white bg-green-600 py-2 font-semibold rounded-lg mt-1 text-[10px]">Save Income</button>
     </div>
   );
 };
