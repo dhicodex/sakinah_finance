@@ -4,10 +4,11 @@ import { useState } from "react";
 import { LuPenLine, LuX } from "react-icons/lu";
 
 type BallMenuProps = {
-    handleFloatingMenu: () => void
+    handleFloatingMenu: () => void;
+    onSelect?: (value: string) => void;
 }
 
-const BallMenu = ({ handleFloatingMenu }: BallMenuProps) => {
+const BallMenu = ({ handleFloatingMenu, onSelect }: BallMenuProps) => {
     const [isOpen, setIsOpen] = useState<boolean>(false);
 
     const menuBall = [
@@ -38,6 +39,7 @@ const BallMenu = ({ handleFloatingMenu }: BallMenuProps) => {
                     <div className="ball-menu__item bg-black text-[10px] px-3 py-2 rounded-full whitespace-nowrap transition-all ease-in-out duration-200 w-fit" 
                     onClick={() => {
                         handleFloatingMenu();
+                        if (onSelect) onSelect(item.value);
                         setIsOpen(false);
                     }}
                     key={i} style={{
