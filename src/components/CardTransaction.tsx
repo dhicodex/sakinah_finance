@@ -26,8 +26,8 @@ const CardTransaction = ({ dateLabel, dateISO, items }: CardTransactionProps) =>
     };
     const removeTx = (id: string) => { deleteTransaction(id); };
 
-    const incomeTotal = items.filter(i => i.type==='income').reduce((a,b)=>a+b.amount,0);
-    const expenseTotal = items.filter(i => i.type==='expense').reduce((a,b)=>a+b.amount,0);
+    const incomeTotal = items.filter(i => i.type==='income' && i.category !== 'Tarik Tunai').reduce((a,b)=>a+b.amount,0);
+    const expenseTotal = items.filter(i => i.type==='expense' && i.category !== 'Tarik Tunai').reduce((a,b)=>a+b.amount,0);
     return (
         <div className="card-transaction w-full">
             <div className="card-transaction__header border-b border-gray-300 pb-2 mb-4 flex">
@@ -87,7 +87,9 @@ const CardTransaction = ({ dateLabel, dateISO, items }: CardTransactionProps) =>
                                     <div className="flex items-center gap-1">
                                         {it.account === 'bank' && <LuCircleDollarSign className="text-blue-500 h-3 w-3" />}
                                         {it.account === 'cash' && <LuBanknote className="text-green-500 h-3 w-3" />}
-                                        <span className={`text-[10px] font-bold ${it.type === 'income' ? 'text-green-500' : 'text-red-500'}`}>{it.type === 'income' ? 'Income' : 'Expense'}</span>
+                                        <span className={`text-[10px] font-bold ${it.type === 'income' ? 'text-green-500' : it.category === 'Tarik Tunai' ? 'text-black' : 'text-red-500'}`}>
+                                            {it.type === 'income' ? 'Income' : it.category === 'Tarik Tunai' ? 'Change' : 'Expense'}
+                                        </span>
                                     </div>
                                     <div className="text-[8px] w-fit font-bold">{it.category} {it.description ? (<span className="text-gray-400">- {it.description}</span>) : null}</div>
                                     
@@ -102,7 +104,7 @@ const CardTransaction = ({ dateLabel, dateISO, items }: CardTransactionProps) =>
                                     </span>
                                 </div>
                                 <div className="item-amount__income flex flex-1 justify-end">
-                                    <span className={`text-[10px] font-semibold text-red-500`}>
+                                    <span className={`text-[10px] font-semibold ${it.category === 'Tarik Tunai' ? 'text-black' : 'text-red-500'}`}>
                                         {it.type == 'expense' && `Rp. ${it.amount.toLocaleString('id-ID')}`}
                                     </span>
                                 </div>

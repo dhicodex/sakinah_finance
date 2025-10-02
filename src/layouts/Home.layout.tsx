@@ -54,7 +54,7 @@ const HomeLayout = () => {
                                     key={d}
                                     dateISO={d}
                                     dateLabel={new Date(d).toLocaleDateString('en-US', { weekday: 'short' })}
-                                    items={grouped[d]}
+                                    items={grouped[d].filter(i => i.category !== 'Tarik Tunai' || i.type !== 'income')}
                                 />
                             ))}
                         </div>
