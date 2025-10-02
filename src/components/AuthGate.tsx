@@ -11,44 +11,67 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+    // Safety: ensure we don't stay in loading forever (e.g. network hangs or initData stalls)
+    const loadingTimeout = setTimeout(() => {
+      if (mounted) setLoading(false);
+    }, 7000); // 7s
+
+    // Robust auth check: try getUser() first (authenticated against server), then fallback to getSession()
     (async () => {
       try {
+        if (typeof window === 'undefined') return;
+        // primary: getUser() is more authoritative and will hit the auth server
+        try {
+          const { data: userData } = await supabase.auth.getUser();
+          const hasUser = Boolean(userData?.user);
+          if (mounted) setIsAuthed(hasUser);
+          if (hasUser) {
+            initData().catch(() => {});
+            return;
+          }
+        } catch (e) {
+          // ignore and fallback to getSession
+        }
+
         const { data, error } = await supabase.auth.getSession();
         if (error) {
           if (mounted) setError(error.message);
         }
         const hasSession = Boolean(data?.session?.user);
-        if (!mounted) return;
-        setIsAuthed(hasSession);
-        // initialize or clear cache depending on session
-        try {
-          await initData();
-        } catch (e) {
-          // ignore init errors here
+        if (mounted) {
+          setIsAuthed(hasSession);
+          // initialize or clear cache depending on session
+          initData().catch(() => {});
         }
       } catch (e: any) {
         if (mounted) setError(e?.message ?? 'Gagal memeriksa sesi.');
       } finally {
         if (mounted) setLoading(false);
+        clearTimeout(loadingTimeout);
       }
     })();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    // Normalize subscription return shape across supabase versions
+    const subRes: any = supabase.auth.onAuthStateChange((_event: any, session: any) => {
       if (!mounted) return;
       setIsAuthed(Boolean(session?.user));
-      try {
-        await initData(); // initData should handle both init and clearing
-      } catch (e) {
-        // ignore
-      } finally {
-        if (mounted) setLoading(false);
-      }
+      initData().catch(() => {});
+      if (mounted) setLoading(false);
     });
+    // possible shapes: { data: { subscription } } or { subscription } or the subscription itself
+    const sub = subRes?.data?.subscription ?? subRes?.subscription ?? subRes;
 
     return () => {
       mounted = false;
+      clearTimeout(loadingTimeout);
       try {
-        sub?.subscription?.unsubscribe();
+        // unsubscribe gracefully regardless of shape
+        if (!sub) return;
+        if (typeof (sub as any).unsubscribe === 'function') {
+          (sub as any).unsubscribe();
+        } else if (typeof (sub as any).subscription?.unsubscribe === 'function') {
+          (sub as any).subscription.unsubscribe();
+        }
       } catch {}
     };
   }, []);
@@ -56,7 +79,9 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = async () => {
     setError(null);
     try {
-      const { error } = await supabase.auth.signInWithOAuth({ provider: "google" });
+      // include redirectTo to ensure we return to the correct origin after OAuth flow
+  const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined;
+  const { error } = await supabase.auth.signInWithOAuth({ provider: "google", options: redirectTo ? { redirectTo } : undefined });
       if (error) setError(error.message);
     } catch (e: any) {
       setError(e?.message || 'Login gagal. Pastikan provider telah diaktifkan di Supabase.');
