@@ -12,28 +12,44 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const { data } = await supabase.auth.getSession();
-      const hasSession = Boolean(data.session?.user);
-      if (!mounted) return;
-      setIsAuthed(hasSession);
-      if (hasSession) {
-        await initData();
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+          if (mounted) setError(error.message);
+        }
+        const hasSession = Boolean(data?.session?.user);
+        if (!mounted) return;
+        setIsAuthed(hasSession);
+        // initialize or clear cache depending on session
+        try {
+          await initData();
+        } catch (e) {
+          // ignore init errors here
+        }
+      } catch (e: any) {
+        if (mounted) setError(e?.message ?? 'Gagal memeriksa sesi.');
+      } finally {
+        if (mounted) setLoading(false);
       }
-      setLoading(false);
     })();
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!mounted) return;
       setIsAuthed(Boolean(session?.user));
-      if (session?.user) {
-        await initData();
-      } else {
-        await initData(); // clears cache
+      try {
+        await initData(); // initData should handle both init and clearing
+      } catch (e) {
+        // ignore
+      } finally {
+        if (mounted) setLoading(false);
       }
     });
 
     return () => {
       mounted = false;
-      sub.subscription.unsubscribe();
+      try {
+        sub?.subscription?.unsubscribe();
+      } catch {}
     };
   }, []);
 
