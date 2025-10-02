@@ -26,7 +26,6 @@ const AnalyticsPage = () => {
       </main>
     </AuthGate>
   );
-}
-;
+};
 
 export default AnalyticsPage;
