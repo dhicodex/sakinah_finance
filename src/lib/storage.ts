@@ -1,3 +1,5 @@
+import { supabase } from '@/lib/supabaseClient';
+
 export type TxType = 'income' | 'expense';
 export type AccountType = 'cash' | 'bank';
 
@@ -13,32 +15,23 @@ export type Transaction = {
   amount: number;
   date: string; // ISO string yyyy-mm-dd
   account: AccountType;
-  category: string; // category name or id
+  category: string; // category label
   description?: string;
   counterparty?: string; // from/to
   createdAt: number; // epoch
 };
 
-const KEYS = {
-  categories: 'sf_categories',
-  transactions: 'sf_transactions',
+// In-memory cache to preserve current sync API
+let cache = {
+  categories: [] as Category[],
+  transactions: [] as Transaction[],
 };
 
-// Helpers
-function readJSON<T>(key: string, fallback: T): T {
-  if (typeof window === 'undefined') return fallback;
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
+// Active realtime channels for the current user session
+let activeChannels: any[] = [];
 
-function writeJSON<T>(key: string, val: T) {
+function emitUpdate() {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(key, JSON.stringify(val));
   try { window.dispatchEvent(new Event('sf-storage-updated')); } catch {}
 }
 
@@ -66,32 +59,221 @@ function generateId(): string {
   return 'id-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
-// Categories
+// Auth/session helpers
+async function getUserId(): Promise<string | null> {
+  try {
+    const { data } = await supabase.auth.getUser();
+    return data.user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function unsubscribeRealtime() {
+  try {
+    for (const ch of activeChannels) {
+      try { ch.unsubscribe(); } catch (e) {}
+    }
+  } catch {}
+  activeChannels = [];
+}
+
+function subscribeRealtimeForUser(userId: string) {
+  try {
+    unsubscribeRealtime();
+
+    // categories realtime
+    const catChannel = supabase
+      .channel(`public:categories:user=${userId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'categories', filter: `user_id=eq.${userId}` }, (payload) => {
+          const p: any = payload;
+          const ev = (p.eventType || p.event || p.type) as string;
+          const newRow = (p.new ?? p.record) as any;
+          const oldRow = (p.old ?? p.old_record) as any;
+          if (ev === 'INSERT') {
+            if (newRow) {
+              const item: Category = { id: String(newRow.id), name: newRow.name, type: newRow.type };
+              // avoid duplicating if exists
+              if (!cache.categories.find(c => c.id === item.id)) {
+                cache.categories = [item, ...cache.categories];
+                emitUpdate();
+              }
+            }
+          } else if (ev === 'UPDATE') {
+            if (newRow) {
+              cache.categories = cache.categories.map(c => c.id === String(newRow.id) ? { id: String(newRow.id), name: newRow.name, type: newRow.type } : c);
+              emitUpdate();
+            }
+          } else if (ev === 'DELETE') {
+            if (oldRow) {
+              cache.categories = cache.categories.filter(c => c.id !== String(oldRow.id));
+              emitUpdate();
+            }
+          }
+        })
+      .subscribe();
+
+    // transactions realtime
+    const txChannel = supabase
+      .channel(`public:transactions:user=${userId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${userId}` }, (payload) => {
+        const p: any = payload;
+        const ev = (p.eventType || p.event || p.type) as string;
+        const newRow = (p.new ?? p.record) as any;
+        const oldRow = (p.old ?? p.old_record) as any;
+        if (ev === 'INSERT') {
+          if (newRow) {
+            const tx: Transaction = {
+              id: String(newRow.id),
+              type: newRow.type,
+              amount: Number(newRow.amount),
+              date: newRow.date,
+              account: newRow.account,
+              category: newRow.category,
+              description: newRow.description ?? undefined,
+              counterparty: newRow.counterparty ?? undefined,
+              createdAt: newRow.created_at ? Date.parse(newRow.created_at) : Date.now(),
+            };
+            if (!cache.transactions.find(t => t.id === tx.id)) {
+              cache.transactions = [tx, ...cache.transactions];
+              emitUpdate();
+            }
+          }
+        } else if (ev === 'UPDATE') {
+          if (newRow) {
+            cache.transactions = cache.transactions.map(t => t.id === String(newRow.id) ? {
+              id: String(newRow.id),
+              type: newRow.type,
+              amount: Number(newRow.amount),
+              date: newRow.date,
+              account: newRow.account,
+              category: newRow.category,
+              description: newRow.description ?? undefined,
+              counterparty: newRow.counterparty ?? undefined,
+              createdAt: newRow.created_at ? Date.parse(newRow.created_at) : Date.now(),
+            } : t);
+            emitUpdate();
+          }
+        } else if (ev === 'DELETE') {
+          if (oldRow) {
+            cache.transactions = cache.transactions.filter(t => t.id !== String(oldRow.id));
+            emitUpdate();
+          }
+        }
+      })
+      .subscribe();
+
+    activeChannels.push(catChannel, txChannel);
+  } catch (e) {
+    console.error('subscribeRealtimeForUser error', e);
+  }
+}
+
+// Initialization: fetch categories and transactions for current user
+export async function initData() {
+  const userId = await getUserId();
+  if (!userId) {
+    cache.categories = [];
+    cache.transactions = [];
+    emitUpdate();
+    unsubscribeRealtime();
+    return;
+  }
+  // fetch in parallel
+  const [catRes, txRes] = await Promise.all([
+    supabase.from('categories').select('id,name,type').eq('user_id', userId).order('name', { ascending: true }),
+    supabase.from('transactions').select('id,type,amount,date,account,category,description,counterparty,created_at').eq('user_id', userId).order('created_at', { ascending: false }),
+  ]);
+
+  if (!catRes.error && catRes.data) {
+    cache.categories = catRes.data.map((r: any) => ({ id: String(r.id), name: r.name, type: r.type }));
+  } else {
+    cache.categories = [];
+    if (catRes.error) console.error('supabase select categories error', catRes.error);
+  }
+
+  if (!txRes.error && txRes.data) {
+    cache.transactions = txRes.data.map((r: any) => ({
+      id: String(r.id),
+      type: r.type,
+      amount: Number(r.amount),
+      date: r.date,
+      account: r.account,
+      category: r.category,
+      description: r.description ?? undefined,
+      counterparty: r.counterparty ?? undefined,
+      createdAt: r.created_at ? Date.parse(r.created_at) : Date.now(),
+    }));
+  } else {
+    cache.transactions = [];
+    if (txRes.error) console.error('supabase select transactions error', txRes.error);
+  }
+  emitUpdate();
+  // subscribe to realtime changes for this user so multiple clients stay in sync
+  try { subscribeRealtimeForUser(userId); } catch (e) {}
+}
+
+// Categories (reads use cache; writes are optimistic then sync to Supabase)
 export function getCategories(): Category[] {
-  return readJSON<Category[]>(KEYS.categories, []);
+  return cache.categories;
 }
 
 export function saveCategories(items: Category[]) {
-  writeJSON(KEYS.categories, items);
+  cache.categories = items.slice();
+  emitUpdate();
+  // persist all (upsert by id)
+  (async () => {
+    const userId = await getUserId();
+    if (!userId) return;
+    // Upsert categories one-by-one to keep it simple
+    for (const c of items) {
+      const { data, error } = await supabase.from('categories').upsert({ id: c.id, user_id: userId, name: c.name, type: c.type });
+      if (error) console.error('supabase upsert category error', { id: c.id, name: c.name, type: c.type, error });
+      else if (!data) console.warn('supabase upsert category returned no data', { id: c.id, name: c.name, type: c.type });
+    }
+  })();
 }
 
 export function addCategory(item: Omit<Category, 'id'> & { id?: string }): Category {
   const list = getCategories();
   const id = item.id ?? generateId();
   const newItem: Category = { id, name: item.name, type: item.type };
-  writeJSON(KEYS.categories, [newItem, ...list]);
+  cache.categories = [newItem, ...list];
+  emitUpdate();
+  (async () => {
+    const userId = await getUserId();
+    if (!userId) return;
+  const { data, error } = await supabase.from('categories').insert({ id, user_id: userId, name: item.name, type: item.type });
+  if (error) console.error('supabase insert category error', { id, name: item.name, type: item.type, error });
+  else if (!data) console.warn('supabase insert category returned no data', { id, name: item.name, type: item.type });
+  })();
   return newItem;
 }
 
 export function removeCategory(id: string) {
   const list = getCategories();
-  writeJSON(KEYS.categories, list.filter(c => c.id !== id));
+  cache.categories = list.filter(c => c.id !== id);
+  emitUpdate();
+  (async () => {
+    const userId = await getUserId();
+    if (!userId) return;
+  const { error } = await supabase.from('categories').delete().eq('user_id', userId).eq('id', id);
+  if (error) console.error('supabase delete category error', { id, error });
+  })();
 }
 
 export function updateCategory(id: string, patch: Partial<Omit<Category, 'id'>>) {
   const list = getCategories();
   const next = list.map(c => c.id === id ? { ...c, ...patch } : c);
-  writeJSON(KEYS.categories, next);
+  cache.categories = next;
+  emitUpdate();
+  (async () => {
+    const userId = await getUserId();
+    if (!userId) return;
+  const { data, error } = await supabase.from('categories').update({ name: patch.name, type: patch.type }).eq('user_id', userId).eq('id', id);
+  if (error) console.error('supabase update category error', { id, patch, error });
+  else if (!data) console.warn('supabase update category returned no data', { id, patch });
+  })();
 }
 
 export function getCategoriesByType(type: TxType): Category[] {
@@ -100,26 +282,78 @@ export function getCategoriesByType(type: TxType): Category[] {
 
 // Transactions
 export function getTransactions(): Transaction[] {
-  return readJSON<Transaction[]>(KEYS.transactions, []);
+  return cache.transactions;
 }
 
 export function addTransaction(tx: Omit<Transaction, 'id' | 'createdAt'> & { id?: string }): Transaction {
   const list = getTransactions();
   const id = tx.id ?? generateId();
   const newTx: Transaction = { ...tx, id, createdAt: Date.now() };
-  writeJSON(KEYS.transactions, [newTx, ...list]);
+  cache.transactions = [newTx, ...list];
+  emitUpdate();
+  (async () => {
+    const userId = await getUserId();
+    if (!userId) return;
+    await supabase.from('transactions').insert({
+      id,
+      user_id: userId,
+      type: tx.type,
+      amount: tx.amount,
+      date: tx.date,
+      account: tx.account,
+      category: tx.category,
+      description: tx.description ?? null,
+      counterparty: tx.counterparty ?? null,
+      created_at: new Date(newTx.createdAt).toISOString(),
+    });
+  })();
   return newTx;
 }
 
 export function updateTransaction(id: string, patch: Partial<Omit<Transaction, 'id'>>) {
   const list = getTransactions();
   const next = list.map(t => t.id === id ? { ...t, ...patch } : t);
-  writeJSON(KEYS.transactions, next);
+  cache.transactions = next;
+  emitUpdate();
+  (async () => {
+    const userId = await getUserId();
+    if (!userId) return;
+    const payload: any = {};
+    if (typeof patch.amount !== 'undefined') payload.amount = patch.amount;
+    if (typeof patch.account !== 'undefined') payload.account = patch.account;
+    if (typeof patch.category !== 'undefined') payload.category = patch.category;
+    if (typeof patch.description !== 'undefined') payload.description = patch.description ?? null;
+    if (typeof patch.type !== 'undefined') payload.type = patch.type;
+    if (typeof patch.date !== 'undefined') payload.date = patch.date;
+    await supabase.from('transactions').update(payload).eq('user_id', userId).eq('id', id);
+  })();
 }
 
 export function deleteTransaction(id: string) {
   const list = getTransactions();
-  writeJSON(KEYS.transactions, list.filter(t => t.id !== id));
+  const target = list.find(t => t.id === id);
+  if (!target) return;
+
+  // If this transaction is part of a 'Tarik Tunai' transfer (withdrawal/ deposit pair),
+  // also remove its counterpart to keep cash/bank balances consistent.
+  // The counterpart will have same amount, same date, category 'Tarik Tunai', and the opposite account.
+  const counterpart = list.find(t =>
+    t.id !== id &&
+    t.category === 'Tarik Tunai' &&
+    t.amount === target.amount &&
+    t.date === target.date &&
+    t.type !== target.type &&
+    t.account !== target.account
+  );
+
+  const filtered = list.filter(t => t.id !== id && (!counterpart || t.id !== counterpart.id));
+  cache.transactions = filtered;
+  emitUpdate();
+  (async () => {
+    const userId = await getUserId();
+    if (!userId) return;
+    await supabase.from('transactions').delete().eq('user_id', userId).in('id', [id, ...(counterpart ? [counterpart.id] : [])]);
+  })();
 }
 
 // Transfer helpers

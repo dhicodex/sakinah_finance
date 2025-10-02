@@ -1,6 +1,28 @@
+"use client";
 import { LuSquareTerminal } from "react-icons/lu";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 const Header = () => {
+    const [email, setEmail] = useState<string | null>(null);
+
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            const { data } = await supabase.auth.getSession();
+            if (!mounted) return;
+            setEmail(data.session?.user?.email ?? null);
+        })();
+        const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+            setEmail(session?.user?.email ?? null);
+        });
+        return () => { mounted = false; sub.subscription.unsubscribe(); };
+    }, []);
+
+    const signOut = async () => {
+        await supabase.auth.signOut();
+    };
+
     return (
         <div className="header">
             <div className="header__wrapper flex justify-between items-center">
@@ -13,7 +35,12 @@ const Header = () => {
                     </div>
                 </div>
 
-                <div className="font-bold text-[10px] text-gray-400 underline">#JOurneytodESTIny</div>
+                <div className="flex items-center gap-2">
+                    {email && <span className="text-[9px] text-gray-500">{email}</span>}
+                    {email && (
+                        <button onClick={signOut} className="text-[9px] text-red-500 underline">Sign out</button>
+                    )}
+                </div>
             </div>
         </div>
     )

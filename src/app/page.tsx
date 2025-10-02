@@ -10,6 +10,7 @@ import LogIncomeForm from "@/components/LogIncomeForm";
 import LogExpenseForm from "@/components/LogExpenseForm";
 import ManageCategory from "@/components/ManageCategory";
 import WithdrawForm from "@/components/WithdrawForm";
+import AuthGate from "@/components/AuthGate";
 
 export default function Home() {
     const [isFloatingMenu, setIsFloatingMenu] = useState<boolean>(false);
@@ -31,6 +32,7 @@ export default function Home() {
     }, [action]);
 
     return (
+        <AuthGate>
         <main className="flex h-[100dvh] flex-col">
             <div className="top py-1 px-2">
                 <Header />
@@ -55,5 +57,6 @@ export default function Home() {
                 {body}
             </FloatingCard>
         </main>
+        </AuthGate>
     );
 }

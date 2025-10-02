@@ -1,11 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { addCategory, getCategories, removeCategory, updateCategory, Category as CatType } from "@/lib/storage";
 
 const ManageCategory = () => {
   const [items, setItems] = useState<CatType[]>(getCategories());
   const [form, setForm] = useState<{ name: string; type: "income" | "expense" }>({ name: "", type: "expense" });
+
+  useEffect(() => {
+    const refresh = () => setItems(getCategories());
+    refresh();
+    window.addEventListener('sf-storage-updated', refresh);
+    return () => window.removeEventListener('sf-storage-updated', refresh);
+  }, []);
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -14,14 +21,14 @@ const ManageCategory = () => {
 
   const add = () => {
     if (!form.name.trim()) return;
-    const created = addCategory({ name: form.name.trim(), type: form.type });
-    setItems((prev) => [created, ...prev]);
+    // rely on storage.addCategory which updates cache and emits 'sf-storage-updated'
+    addCategory({ name: form.name.trim(), type: form.type });
     setForm({ name: "", type: form.type });
   };
 
   const remove = (id: string) => {
+    // storage will update cache and emit event; UI will refresh from the event listener
     removeCategory(id);
-    setItems((prev) => prev.filter((x) => x.id !== id));
   };
 
   const income = items.filter((x) => x.type === "income");
@@ -61,7 +68,7 @@ const ManageCategory = () => {
           <div className="font-bold text-[11px] text-gray-500 mb-1">Income</div>
           <div className="grid gap-2">
             {income.map((c) => (
-              <EditableRow key={c.id} item={c} onSave={(name, type) => { updateCategory(c.id, { name, type }); setItems(getCategories()); }} onRemove={() => remove(c.id)} />
+              <EditableRow key={c.id} item={c} onSave={(name, type) => { updateCategory(c.id, { name, type }); }} onRemove={() => remove(c.id)} />
             ))}
             {income.length === 0 && <div className="text-[9px] text-gray-400">No income categories</div>}
           </div>
@@ -71,7 +78,7 @@ const ManageCategory = () => {
           <div className="font-bold text-[11px] text-gray-500 mb-1">Expense</div>
           <div className="grid gap-2">
             {expense.map((c) => (
-              <EditableRow key={c.id} item={c} onSave={(name, type) => { updateCategory(c.id, { name, type }); setItems(getCategories()); }} onRemove={() => remove(c.id)} />
+              <EditableRow key={c.id} item={c} onSave={(name, type) => { updateCategory(c.id, { name, type }); }} onRemove={() => remove(c.id)} />
             ))}
             {expense.length === 0 && <div className="text-[9px] text-gray-400">No expense categories</div>}
           </div>
