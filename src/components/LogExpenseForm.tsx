@@ -39,33 +39,33 @@ const LogExpenseForm = ({ onSaved }: Props) => {
   return (
     <div className="grid gap-3">
       <div className="grid gap-1">
-        <label className="text-[9px] text-gray-500">Amount</label>
+  <label className="text-[10px] text-gray-500">Amount</label>
         <AmountInput
           value={form.amount}
           onValue={(v) => setForm((p) => ({ ...p, amount: v }))}
           placeholder="e.g. 200.000"
-          className="w-full border border-gray-200 rounded-md px-3 py-2 text-[10px]"
+          className="w-full border border-gray-200 rounded-md px-3 py-2 text-[11px]"
         />
       </div>
 
       <div className="grid gap-1 grid-cols-2">
         <div className="grid gap-1">
-          <label className="text-[9px] text-gray-500">Date</label>
+          <label className="text-[10px] text-gray-500">Date</label>
           <input
             name="date"
             value={form.date}
             onChange={onChange}
             type="date"
-            className="w-full border border-gray-200 rounded-md px-3 py-2 text-[10px]"
+            className="w-full border border-gray-200 rounded-md px-3 py-2 text-[11px]"
           />
         </div>
         <div className="grid gap-1">
-          <label className="text-[9px] text-gray-500">Account</label>
+          <label className="text-[10px] text-gray-500">Account</label>
           <select
             name="account"
             value={form.account}
             onChange={onChange}
-            className="w-full border border-gray-200 rounded-md px-3 py-2 text-[10px]"
+            className="w-full border border-gray-200 rounded-md px-3 py-2 text-[11px]"
           >
             <option value="cash">Cash</option>
             <option value="bank">Bank</option>
@@ -74,12 +74,12 @@ const LogExpenseForm = ({ onSaved }: Props) => {
       </div>
 
       <div className="grid gap-1">
-        <label className="text-[9px] text-gray-500">Category</label>
+  <label className="text-[10px] text-gray-500">Category</label>
         <select
           name="category"
           value={form.category}
           onChange={onChange}
-          className="w-full border border-gray-200 rounded-md px-3 py-2 text-[10px]"
+          className="w-full border border-gray-200 rounded-md px-3 py-2 text-[11px]"
         >
           <option value="">Pilih kategori</option>
           {categories.map(c => (
@@ -89,17 +89,17 @@ const LogExpenseForm = ({ onSaved }: Props) => {
       </div>
 
       <div className="grid gap-1">
-        <label className="text-[9px] text-gray-500">Description</label>
+  <label className="text-[10px] text-gray-500">Description</label>
         <textarea
           name="description"
           value={form.description}
           onChange={onChange}
           placeholder="Optional notes"
-          className="w-full border border-gray-200 rounded-md px-3 py-2 text-[10px] min-h-16"
+          className="w-full border border-gray-200 rounded-md px-3 py-2 text-[11px] min-h-16"
         />
       </div>
 
-      <button onClick={submit} className="w-full text-white bg-green-600 py-2 font-semibold rounded-lg mt-1 text-[10px]">Save Expense</button>
+  <button onClick={submit} className="w-full text-white bg-green-600 py-2 font-semibold rounded-lg mt-1 text-[11px]">Save Expense</button>
     </div>
   );
 };

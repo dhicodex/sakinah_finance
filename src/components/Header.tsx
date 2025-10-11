@@ -31,14 +31,14 @@ const Header = () => {
                         <LuSquareTerminal />
                     </div>
                     <div className="header__title">
-                        <h1 className="font-bold pt-1 text-[10px]">Sakinah Finance</h1>
+                        <h1 className="font-bold pt-1 text-[11px]">Sakinah Finance</h1>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                    {email && <span className="text-[9px] text-gray-500">{email}</span>}
+                    {email && <span className="text-[10px] text-gray-500">{email}</span>}
                     {email && (
-                        <button onClick={signOut} className="text-[9px] text-red-500 underline">Sign out</button>
+                        <button onClick={signOut} className="text-[10px] text-red-500 underline">Sign out</button>
                     )}
                 </div>
             </div>

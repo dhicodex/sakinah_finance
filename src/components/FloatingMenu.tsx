@@ -28,7 +28,7 @@ const FloatingMenu = () => {
                     return (
                         <Link key={i} href={item.href} className={`floating-menu__item flex flex-col gap-0.5 items-center justify-center px-5 py-1 rounded-full transition-all ease-in-out duration-100 ${isActive ? 'bg-gray-100' : ''}`}>
                             <span className={`${isActive ? 'text-green-500' : 'text-gray-400'}`}>{item.icon}</span>
-                            <span className={`text-[8px] ${isActive ? 'text-green-500' : 'text-gray-400'}`}>{item.label}</span>
+                            <span className={`text-[9px] ${isActive ? 'text-green-500' : 'text-gray-400'}`}>{item.label}</span>
                         </Link>
                     );
                 })}
