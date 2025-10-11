@@ -98,7 +98,7 @@ const Donut: React.FC<{ slices: Slice[]; title?: string; onSelect?: (label: stri
 
 const ChartsLayout: React.FC = () => {
   const [txs, setTxs] = useState(() => getTransactions());
-  const [selectedDetail, setSelectedDetail] = useState<{ kind: 'date'|'category'|null; value?: string }>(() => ({ kind: null }));
+  const [selectedDetail, setSelectedDetail] = useState<{ kind: 'date'|'category'|null; value?: string; categoryType?: 'income'|'expense' }>(() => ({ kind: null }));
   const detailsRef = React.useRef<HTMLDivElement | null>(null);
   // Filters: mode can be 'cutoff' (21 prev -> 20 cur), 'month' (calendar month), or 'range'
   const now = new Date();
@@ -248,6 +248,15 @@ const ChartsLayout: React.FC = () => {
     return txsFiltered.filter(t => t.category === selectedDetail.value);
   }, [selectedDetail, txsFiltered]);
 
+  const detailsTotals = useMemo(() => {
+    const out = { income: 0, expense: 0 };
+    for (const t of details) {
+      if (t.type === 'income') out.income += t.amount;
+      else out.expense += t.amount;
+    }
+    return out;
+  }, [details]);
+
   // auto-scroll to details when a category/date is selected
   useEffect(() => {
     if (!selectedDetail.kind) return;
@@ -314,8 +323,8 @@ const ChartsLayout: React.FC = () => {
 
         <WeeklyBarChart data={weekly} onSelect={(iso) => setSelectedDetail({ kind: 'date', value: iso })} />
         <div className="grid md:grid-cols-2 grid-cols-1 gap-2">
-          <Donut slices={expenseSlices} title="Expense Breakdown" baseTotal={incomeTotal} selected={selectedDetail.kind === 'category' ? selectedDetail.value ?? null : null} onSelect={(label) => setSelectedDetail({ kind: 'category', value: label })} />
-          <Donut slices={incomeSlices} title="Income Breakdown" selected={selectedDetail.kind === 'category' ? selectedDetail.value ?? null : null} onSelect={(label) => setSelectedDetail({ kind: 'category', value: label })} />
+          <Donut slices={expenseSlices} title="Expense Breakdown" baseTotal={incomeTotal} selected={selectedDetail.kind === 'category' ? selectedDetail.value ?? null : null} onSelect={(label) => setSelectedDetail({ kind: 'category', value: label, categoryType: 'expense' })} />
+          <Donut slices={incomeSlices} title="Income Breakdown" selected={selectedDetail.kind === 'category' ? selectedDetail.value ?? null : null} onSelect={(label) => setSelectedDetail({ kind: 'category', value: label, categoryType: 'income' })} />
         </div>
 
         <div className="mt-2" ref={detailsRef}>
@@ -328,10 +337,36 @@ const ChartsLayout: React.FC = () => {
                 <div className="grid gap-2">
                   {details.map((t, i) => (
                     <div key={i} className="flex justify-between text-[10px]">
-                      <div className="text-gray-600">{t.description || ''}</div>
+                      <div className="text-gray-600">{t.category} - {t.description || ''}</div>
                       <div className={`font-semibold ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>{formatRupiah(t.amount)}</div>
                     </div>
                   ))}
+                  <div className="border-t border-gray-100 pt-2 mt-2">
+                    {selectedDetail.kind === 'date' && (
+                      <>
+                        <div className={`flex justify-between text-[11px] font-semibold`}>
+                          <div>Total Income</div>
+                          <div className="text-green-600">{formatRupiah(detailsTotals.income)}</div>
+                        </div>
+                        <div className={`flex justify-between text-[11px] font-semibold`}>
+                          <div>Total Expense</div>
+                          <div className="text-red-600">{formatRupiah(detailsTotals.expense)}</div>
+                        </div>
+                      </>
+                    )}
+                    {selectedDetail.kind === 'category' && selectedDetail.categoryType === 'income' && (
+                      <div className={`flex justify-between text-[11px] font-semibold`}>
+                        <div>Total Income</div>
+                        <div className="text-green-600">{formatRupiah(detailsTotals.income)}</div>
+                      </div>
+                    )}
+                    {selectedDetail.kind === 'category' && selectedDetail.categoryType === 'expense' && (
+                      <div className={`flex justify-between text-[11px] font-semibold`}>
+                        <div>Total Expense</div>
+                        <div className="text-red-600">{formatRupiah(detailsTotals.expense)}</div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
