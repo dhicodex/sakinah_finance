@@ -55,7 +55,13 @@ const WeeklyBarChart: React.FC<{ data: SeriesPoint[]; onSelect?: (iso: string) =
 };
 
 const Donut: React.FC<{ slices: Slice[]; title?: string; onSelect?: (label: string) => void; baseTotal?: number; selected?: string | null }> = ({ slices, title = 'Breakdown', onSelect, baseTotal, selected = null }) => {
-  const sliceSum = slices.reduce((a, b) => a + b.value, 0);
+  // create a sorted copy of slices (descending by value) so the pie and legend
+  // display from largest to smallest without mutating the original array
+  const sortedSlices = React.useMemo(() => {
+    return [...slices].sort((a, b) => b.value - a.value);
+  }, [slices]);
+
+  const sliceSum = sortedSlices.reduce((a, b) => a + b.value, 0);
   const total = Math.max(1, sliceSum);
   const percentBase = typeof baseTotal === 'number' && baseTotal > 0 ? baseTotal : total;
   return (
@@ -65,8 +71,8 @@ const Donut: React.FC<{ slices: Slice[]; title?: string; onSelect?: (label: stri
         <div style={{ width: 140, height: 140 }}>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={slices} dataKey="value" nameKey="label" innerRadius={40} outerRadius={60} onClick={(e: any) => onSelect?.(e.label)}>
-                {slices.map((s, i) => (
+              <Pie data={sortedSlices} dataKey="value" nameKey="label" innerRadius={40} outerRadius={60} onClick={(e: any) => onSelect?.(e.label)}>
+                {sortedSlices.map((s, i) => (
                   <Cell
                     key={i}
                     fill={s.color ?? colorFallback[i % colorFallback.length]}
@@ -80,7 +86,7 @@ const Donut: React.FC<{ slices: Slice[]; title?: string; onSelect?: (label: stri
           </ResponsiveContainer>
         </div>
         <div style={{ flex: 1 }}>
-          {slices.map((s, i) => (
+          {sortedSlices.map((s, i) => (
             <div key={i} className={`flex items-center justify-between text-[11px] mb-2 ${selected === s.label ? 'bg-gray-50 rounded px-2 py-1' : ''}`}>
               <div className="flex items-center gap-2 text-gray-600">
                 <span className="inline-block h-2 w-3 rounded" style={{ background: s.color ?? colorFallback[i % colorFallback.length] }} />
@@ -335,7 +341,7 @@ const ChartsLayout: React.FC = () => {
                 <div className="text-[10px] text-gray-400">No transactions found</div>
               ) : (
                 <div className="grid gap-2">
-                  {details.map((t, i) => (
+                  {[...(details || [])].sort((a,b) => b.amount - a.amount).map((t, i) => (
                     <div key={i} className="flex justify-between text-[10px]">
                       <div className="text-gray-600">{t.category} - {t.description || ''}</div>
                       <div className={`font-semibold ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>{formatRupiah(t.amount)}</div>
