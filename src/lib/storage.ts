@@ -59,6 +59,15 @@ function generateId(): string {
   return 'id-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
+// Return local date ISO string (yyyy-mm-dd) using local timezone to avoid UTC shift
+export function formatDateISO(d?: Date) {
+  const date = d ? new Date(d) : new Date();
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 // Auth/session helpers
 async function getUserId(): Promise<string | null> {
   try {
@@ -358,7 +367,7 @@ export function deleteTransaction(id: string) {
 
 // Transfer helpers
 export function withdrawCash(amount: number, dateISO?: string) {
-  const date = dateISO ?? new Date().toISOString().slice(0,10);
+  const date = dateISO ?? formatDateISO();
   if (!amount || amount <= 0) return;
   // Expense from bank
   addTransaction({
@@ -415,7 +424,7 @@ export function getWeeklySeries(reference = new Date()) {
   const series = labels.map((label, i) => {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
-    const iso = d.toISOString().slice(0,10);
+  const iso = formatDateISO(d);
     const dayTx = txs.filter(t => t.date === iso);
     const income = dayTx.filter(t => t.type==='income').reduce((a,b)=>a+b.amount,0);
     const expense = dayTx.filter(t => t.type==='expense').reduce((a,b)=>a+b.amount,0);
@@ -432,4 +441,27 @@ export function getSlices(type: TxType) {
   }
   const palette = type === 'expense' ? ['#ef4444','#f97316','#f59e0b','#a855f7','#06b6d4','#94a3b8'] : ['#22c55e','#10b981','#34d399','#84cc16','#14b8a6','#60a5fa'];
   return Array.from(map.entries()).map(([label, value], i) => ({ label, value, color: palette[i % palette.length] }));
+}
+
+/**
+ * Build a daily series between startISO and endISO (inclusive) from the provided
+ * transactions or the global cache. Returns objects with label, income, expense and iso.
+ */
+export function getSeriesForRange(startISO: string, endISO: string, txsParam?: Transaction[], excludeTarikTunai = true) {
+  const txs = txsParam ?? getTransactions();
+  const start = new Date(startISO);
+  const end = new Date(endISO);
+  // normalize
+  start.setHours(0,0,0,0);
+  end.setHours(0,0,0,0);
+  const out: { label: string; income: number; expense: number; iso: string }[] = [];
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+  const iso = formatDateISO(d);
+    const dayTx = txs.filter(t => t.date === iso && (!excludeTarikTunai || t.category !== 'Tarik Tunai'));
+    const income = dayTx.filter(t => t.type === 'income').reduce((a,b)=>a+b.amount,0);
+    const expense = dayTx.filter(t => t.type === 'expense').reduce((a,b)=>a+b.amount,0);
+    const label = d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+    out.push({ label, income, expense, iso });
+  }
+  return out;
 }

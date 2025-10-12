@@ -15,7 +15,7 @@ import {
   Legend,
   CartesianGrid,
 } from "recharts";
-import { getTransactions, getWeeklySeries, getSlices } from "@/lib/storage";
+import { getTransactions, getWeeklySeries, getSlices, getSeriesForRange, formatDateISO } from "@/lib/storage";
 
 type SeriesPoint = { label: string; income: number; expense: number; iso?: string };
 type Slice = { label: string; value: number; color?: string };
@@ -27,7 +27,7 @@ const incomePalette = ['#16a34a','#22c55e','#4ade80','#86efac','#059669','#10b98
 
 const formatRupiah = (v: number) => `Rp. ${v.toLocaleString('id-ID')}`;
 
-const WeeklyBarChart: React.FC<{ data: SeriesPoint[]; onSelect?: (iso: string) => void }> = ({ data, onSelect }) => {
+const WeeklyBarChart: React.FC<{ data: SeriesPoint[]; onSelect?: (iso: string) => void; note?: string; highlight?: boolean; title?: string }> = ({ data, onSelect, note, highlight, title }) => {
   const handleClick = (entry: any) => {
     if (!entry) return;
     const iso = entry.iso ?? entry.label;
@@ -37,7 +37,9 @@ const WeeklyBarChart: React.FC<{ data: SeriesPoint[]; onSelect?: (iso: string) =
 
   return (
     <div className="w-full bg-white rounded-xl p-3 border border-gray-100">
-  <div className="text-[12px] font-bold text-gray-500 mb-2">Income vs Expense (Weekly)</div>
+  <div className="flex items-center justify-between mb-2">
+  <div className="text-[12px] font-bold text-gray-500">{title ?? 'Income vs Expense (Weekly)'}</div>
+  </div>
       <div style={{ width: '100%', height: 220 }}>
         <ResponsiveContainer>
           <LineChart data={data} onClick={(e: any) => handleClick(e?.activePayload?.[0]?.payload)}>
@@ -50,6 +52,9 @@ const WeeklyBarChart: React.FC<{ data: SeriesPoint[]; onSelect?: (iso: string) =
           </LineChart>
         </ResponsiveContainer>
       </div>
+      {note ? (
+        <div className="mt-2 text-sky-600 font-medium text-[11px]">{note}</div>
+      ) : null}
     </div>
   );
 };
@@ -194,29 +199,30 @@ const ChartsLayout: React.FC = () => {
   }, [txs, activeStart, activeEnd]);
 
   const weekly = useMemo(() => {
-    // compute last 7 days (today and 6 previous days) and aggregate using filtered transactions
-    const end = new Date();
-    end.setHours(0,0,0,0);
-    const start = new Date(end);
-    start.setDate(end.getDate() - 6);
-    const days: SeriesPoint[] = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(start);
-      d.setDate(start.getDate() + i);
-      d.setHours(0,0,0,0);
-      const isoStr = d.toISOString().slice(0,10);
-      const displayLabel = d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
-      const dayTx = txsFiltered.filter(t => t.date === isoStr);
-      let income = dayTx.filter(t => t.type === 'income' && t.category !== 'Tarik Tunai').reduce((a, b) => a + b.amount, 0);
-      const expense = dayTx.filter(t => t.type === 'expense' && t.category !== 'Tarik Tunai').reduce((a, b) => a + b.amount, 0);
-      // if rollover applies and the day equals activeStart, add the synthetic deposit
-      if (rolloverAmount > 0 && isoStr === activeStart) {
-        income += rolloverAmount;
+    // If the user selected Range mode, show the series for the active range
+    if (filterMode === 'range') {
+      const series = getSeriesForRange(activeStart, activeEnd, txsFiltered, true);
+      if (rolloverAmount > 0) {
+        return series.map(s => s.iso === activeStart ? { ...s, income: s.income + rolloverAmount } : s);
       }
-      days.push({ label: displayLabel, income, expense, iso: isoStr });
+      return series;
     }
-    return days;
-  }, [txsFiltered, rolloverAmount, activeStart]);
+
+    // Default: Show last 7 local days ending today (today + previous 6 days)
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const endISO = formatDateISO(today);
+    const start = new Date(today);
+    start.setDate(today.getDate() - 6);
+    const startISO = formatDateISO(start);
+    // Use full tx list so filters don't affect the 7-day default
+    const series = getSeriesForRange(startISO, endISO, txs, true);
+    // apply rollover if activeStart matches a day in the series
+    if (rolloverAmount > 0) {
+      return series.map(s => s.iso === activeStart ? { ...s, income: s.income + rolloverAmount } : s);
+    }
+    return series;
+  }, [txs, rolloverAmount, activeStart, activeEnd, filterMode, rangeStart, rangeEnd, txsFiltered]);
 
   const expenseSlices = useMemo(() => {
     const map = new Map<string, number>();
@@ -327,7 +333,13 @@ const ChartsLayout: React.FC = () => {
           <div className="ml-auto text-[11px] text-gray-500">Active: {activeStart} → {activeEnd}</div>
         </div>
 
-        <WeeklyBarChart data={weekly} onSelect={(iso) => setSelectedDetail({ kind: 'date', value: iso })} />
+        <WeeklyBarChart
+          data={weekly}
+          onSelect={(iso) => setSelectedDetail({ kind: 'date', value: iso })}
+          note={"Catatan: grafik garis menampilkan data sesuai filter Rentang Tanggal."}
+          highlight={filterMode === 'range'}
+          title={`Income vs Expense — ${activeStart} → ${activeEnd}`}
+        />
         <div className="grid md:grid-cols-2 grid-cols-1 gap-2">
           <Donut slices={expenseSlices} title="Expense Breakdown" baseTotal={incomeTotal} selected={selectedDetail.kind === 'category' ? selectedDetail.value ?? null : null} onSelect={(label) => setSelectedDetail({ kind: 'category', value: label, categoryType: 'expense' })} />
           <Donut slices={incomeSlices} title="Income Breakdown" selected={selectedDetail.kind === 'category' ? selectedDetail.value ?? null : null} onSelect={(label) => setSelectedDetail({ kind: 'category', value: label, categoryType: 'income' })} />

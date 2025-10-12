@@ -2,6 +2,7 @@ import { LuCircleDollarSign, LuBanknote } from "react-icons/lu";
 import { Transaction, deleteTransaction, updateTransaction, getCategoriesByType } from "@/lib/storage";
 import { useState } from "react";
 import AmountInput from "@/components/AmountInput";
+import ConfirmModal from "@/components/ConfirmModal";
 
 type CardTransactionProps = {
     dateLabel: string; // e.g. Mon
@@ -24,7 +25,25 @@ const CardTransaction = ({ dateLabel, dateISO, items }: CardTransactionProps) =>
         updateTransaction(id, { amount, account: draft.account, category: draft.category, description: draft.description });
         setEditingId(null);
     };
-    const removeTx = (id: string) => { deleteTransaction(id); };
+    const [modalOpen, setModalOpen] = useState(false);
+    const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+
+    const confirmAndRemove = (tx: Transaction) => {
+        setSelectedTx(tx);
+        setModalOpen(true);
+    };
+
+    const onConfirmDelete = () => {
+        if (!selectedTx) return;
+        deleteTransaction(selectedTx.id);
+        setModalOpen(false);
+        setSelectedTx(null);
+    };
+
+    const onCancelDelete = () => {
+        setModalOpen(false);
+        setSelectedTx(null);
+    };
 
     const incomeTotal = items.filter(i => i.type==='income' && i.category !== 'Tarik Tunai').reduce((a,b)=>a+b.amount,0);
     const expenseTotal = items.filter(i => i.type==='expense' && i.category !== 'Tarik Tunai').reduce((a,b)=>a+b.amount,0);
@@ -78,7 +97,7 @@ const CardTransaction = ({ dateLabel, dateISO, items }: CardTransactionProps) =>
                                 <div className="flex items-center justify-end gap-3">
                                     <button className="text-[10px] text-green-600" onClick={()=>saveEdit(it.id, it.type)}>Save</button>
                                     <button className="text-[10px] text-gray-500" onClick={cancelEdit}>Cancel</button>
-                                    <button className="text-[10px] text-red-500" onClick={()=>removeTx(it.id)}>Delete</button>
+                                        <button className="text-[10px] text-red-500" onClick={()=>confirmAndRemove(it)}>Delete</button>
                                 </div>
                             </div>
                         ) : (
@@ -95,7 +114,7 @@ const CardTransaction = ({ dateLabel, dateISO, items }: CardTransactionProps) =>
                                     
                                     <div className="flex items-center">
                                         <button className="text-[10px] text-blue-500" onClick={()=>startEdit(it)}>Edit</button>
-                                        <button className="text-[10px] text-red-500 ml-3" onClick={()=>removeTx(it.id)}>Delete</button>
+                                        <button className="text-[10px] text-red-500 ml-3" onClick={()=>confirmAndRemove(it)}>Delete</button>
                                     </div>
                                 </div>
                                 <div className="item-amount__income flex flex-1 justify-end">
@@ -113,6 +132,24 @@ const CardTransaction = ({ dateLabel, dateISO, items }: CardTransactionProps) =>
                     </div>
                 ))}
             </div>
+            <ConfirmModal
+                open={modalOpen}
+                title="Hapus transaksi"
+                message={
+                    selectedTx ? (
+                        <div className="text-[13px]">
+                            <div className="font-semibold">{selectedTx.category}{selectedTx.description ? ` - ${selectedTx.description}` : ''}</div>
+                            <div className="text-gray-500 mt-1">Rp. {selectedTx.amount.toLocaleString('id-ID')}</div>
+                        </div>
+                    ) : (
+                        'Hapus transaksi ini?'
+                    )
+                }
+                confirmLabel="Hapus"
+                cancelLabel="Batal"
+                onConfirm={onConfirmDelete}
+                onCancel={onCancelDelete}
+            />
         </div>
     )
 };

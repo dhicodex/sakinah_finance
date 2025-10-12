@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import AmountInput from "@/components/AmountInput";
-import { withdrawCash } from "@/lib/storage";
+import { withdrawCash, formatDateISO } from "@/lib/storage";
 
 type Props = { onSaved?: () => void };
 
 const WithdrawForm = ({ onSaved }: Props) => {
   const [amount, setAmount] = useState("");
-  const [date, setDate] = useState<string>(new Date().toISOString().slice(0,10));
+  const [date, setDate] = useState<string>(formatDateISO());
 
   const submit = () => {
     const n = Number(amount || 0);
